@@ -997,6 +997,21 @@ __declspec(naked) void _DllCanUnloadNow() { _asm { jmp[shared.DllCanUnloadNow] }
 __declspec(naked) void _DllGetClassObject() { _asm { jmp[shared.DllGetClassObject] } }
 __declspec(naked) void _DebugSetMute() { _asm { jmp[shared.DebugSetMute] } }
 
+uintptr_t OrigInitImports = 0;
+uintptr_t InitImportsCallAddr = 0;
+uintptr_t GetStartupInfoAddr = 0;
+
+void __stdcall MyGetStartupInfoW(LPSTARTUPINFOW lpStartupInfo) {
+    loader::LoadPlugins();
+    GetStartupInfoW(lpStartupInfo);
+}
+
+void OnInitImports() {
+    plugin::patch::RedirectCall(InitImportsCallAddr, (void *)OrigInitImports);
+    plugin::CallDynGlobal(OrigInitImports);
+    plugin::patch::SetPointer(GetStartupInfoAddr, MyGetStartupInfoW);
+}
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
         std::wstring gameDir = loader::GetModuleDir(NULL);
@@ -1519,12 +1534,25 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         if (loader::debugMode == 2 && !loadingResult)
             plugin::InternalMessage(L"Failed to load " + moduleName);
         if (loader::anyProcess || (plugin::StartsWith(procName, L"fifa") && !plugin::StartsWith(procName, L"fifaconfig"))) {
+            auto ep = FIFA::GetEntryPoint();
             if (loader::debugMode) {
-                auto ep = FIFA::GetEntryPoint();
                 plugin::InternalMessage(L"Plugin Loader (%s) was attached to process.\n\n  Loader module: %s\n  Process name: %s\n  EntryPoint: 0x%X\n\nLoading plugins...",
                     LOADER_VERSION, moduleName.c_str(), loader::GetModuleName(NULL).c_str(), ep);
             }
-            loader::LoadPlugins();
+            auto id = FIFA::GetAppVersion().id();
+            if (id == ID_FIFA14_1700 || id == ID_FIFA14_1700_3DM || id == ID_FIFA14_1400_3DM) {
+                if (id == ID_FIFA14_1400_3DM) {
+                    InitImportsCallAddr = 0x40284A;
+                    GetStartupInfoAddr = 0x3F9A3E4;
+                }
+                else {
+                    InitImportsCallAddr = 0x4027FA;
+                    GetStartupInfoAddr = 0x3FF040C;
+                }
+                OrigInitImports = plugin::patch::RedirectCall(InitImportsCallAddr, OnInitImports);
+            }
+            else
+                loader::LoadPlugins();
         }
     }
     return TRUE;
