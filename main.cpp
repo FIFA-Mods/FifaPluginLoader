@@ -1000,6 +1000,7 @@ __declspec(naked) void _DebugSetMute() { _asm { jmp[shared.DebugSetMute] } }
 uintptr_t OrigInitImports = 0;
 uintptr_t InitImportsCallAddr = 0;
 uintptr_t GetStartupInfoAddr = 0;
+uintptr_t OrigEntryPoint = 0;
 
 void __stdcall MyGetStartupInfoW(LPSTARTUPINFOW lpStartupInfo) {
     loader::LoadPlugins();
@@ -1010,6 +1011,11 @@ void OnInitImports() {
     plugin::patch::RedirectCall(InitImportsCallAddr, (void *)OrigInitImports);
     plugin::CallDynGlobal(OrigInitImports);
     plugin::patch::SetPointer(GetStartupInfoAddr, MyGetStartupInfoW);
+}
+
+int DelayedLoadPlugins() {
+    loader::LoadPlugins();
+    return plugin::CallAndReturnDynGlobal<int>(OrigEntryPoint);
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
@@ -1540,16 +1546,21 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
                     LOADER_VERSION, moduleName.c_str(), loader::GetModuleName(NULL).c_str(), ep);
             }
             auto id = FIFA::GetAppVersion().id();
-            if (id == ID_FIFA14_1700 || id == ID_FIFA14_1700_3DM || id == ID_FIFA14_1400_3DM) {
-                if (id == ID_FIFA14_1400_3DM) {
-                    InitImportsCallAddr = 0x40284A;
-                    GetStartupInfoAddr = 0x3F9A3E4;
-                }
-                else {
-                    InitImportsCallAddr = 0x4027FA;
-                    GetStartupInfoAddr = 0x3FF040C;
-                }
+            if (id == ID_FIFA14_1700) {
+                InitImportsCallAddr = 0x4027FA;
                 OrigInitImports = plugin::patch::RedirectCall(InitImportsCallAddr, OnInitImports);
+                GetStartupInfoAddr = 0x3FF040C;
+            }
+            else if (id == ID_FIFA14_1400_3DM) {
+                InitImportsCallAddr = 0x40284A;
+                OrigInitImports = plugin::patch::RedirectCall(InitImportsCallAddr, OnInitImports);
+                GetStartupInfoAddr = 0x3F9A3E4;
+            }
+            else if (id == ID_FIFA08_1200_VTY) {
+                OrigEntryPoint = plugin::patch::RedirectJump(0x173CFAD, DelayedLoadPlugins);
+            }
+            else if (id == ID_FIFA08_1200_BFF) {
+                OrigEntryPoint = plugin::patch::RedirectJump(0x1C227B0, DelayedLoadPlugins);
             }
             else
                 loader::LoadPlugins();
