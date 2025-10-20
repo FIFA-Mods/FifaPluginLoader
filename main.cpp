@@ -1013,9 +1013,10 @@ void OnInitImports() {
     plugin::patch::SetPointer(GetStartupInfoAddr, MyGetStartupInfoW);
 }
 
-int DelayedLoadPlugins() {
-    loader::LoadPlugins();
-    return plugin::CallAndReturnDynGlobal<int>(OrigEntryPoint);
+void NAKED DelayedLoadPlugins() {
+    __asm call loader::LoadPlugins
+    __asm mov eax, OrigEntryPoint
+    __asm jmp eax
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
