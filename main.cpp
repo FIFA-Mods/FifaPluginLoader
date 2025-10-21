@@ -1540,7 +1540,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
         if (loader::debugMode == 2 && !loadingResult)
             plugin::InternalMessage(L"Failed to load " + moduleName);
-        if (loader::anyProcess || (plugin::StartsWith(procName, L"fifa") && !plugin::StartsWith(procName, L"fifaconfig"))) {
+        if (loader::anyProcess || (plugin::StartsWith(procName, L"fifa")
+            && !plugin::StartsWith(procName, L"fifaconfig")
+            && !plugin::EndsWith(procName, L"3dm.exe")))
+        {
             auto ep = FIFA::GetEntryPoint();
             if (loader::debugMode) {
                 plugin::InternalMessage(L"Plugin Loader (%s) was attached to process.\n\n  Loader module: %s\n  Process name: %s\n  EntryPoint: 0x%X\n\nLoading plugins...",
